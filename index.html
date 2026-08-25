@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #12101e;
+            --bg-pattern: #1e1a34;
+            --text-color: #fff;
+            --cabinet-bg: #2d172b;
+            --cabinet-border: #140813;
+            --marquee-bg: #f0254f;
+            --reel-bg: #ffffff;
+            --reel-text: #140813;
+            --reel-border: #38b764;
+            --status-bg: #140813;
+            --status-text: #38b764;
+            --title-color: #fcea48;
+        }
+
+        [data-theme="light"] {
+            --bg-color: #e2f3e4;
+            --bg-pattern: #b4e5b9;
+            --text-color: #140813;
+            --cabinet-bg: #73eff7;
+            --cabinet-border: #140813;
+            --marquee-bg: #ff75a0;
+            --reel-bg: #ffffff;
+            --reel-text: #140813;
+            --reel-border: #257179;
+            --status-bg: #ffffff;
+            --status-text: #140813;
+            --title-color: #ff2a6d;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Press Start 2P', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 15px;
+            background-image: 
+                radial-gradient(var(--bg-pattern) 15%, transparent 16%),
+                radial-gradient(var(--bg-pattern) 15%, transparent 16%);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+            transition: background 0.3s, color 0.3s;
+            overflow-x: hidden;
+            perspective: 1000px;
+        }
+
+        h1 {
+            background: linear-gradient(
+                90deg, 
+                #ff0000, 
+                #ff7f00, 
+                #ffff00, 
+                #00ff00, 
+                #00ffff, 
+                #0000ff, 
+                #8b00ff,
+                #ff0000
+            );
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: rainbow 4s linear infinite;
+            filter: drop-shadow(3px 3px 0px #000);
+            margin-bottom: 8px;
+            font-size: clamp(1.1rem, 4vw, 1.6rem);
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        @keyframes rainbow {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        .attempts-count {
+            font-size: clamp(0.55rem, 2.2vw, 0.75rem);
+            color: #8b9bb4;
+            margin-bottom: 15px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .jackpot-highlight {
+            color: #fcea48;
+            text-shadow: 1px 1px #000;
+        }
+
+        .app-shell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+            transform-style: preserve-3d;
+        }
+
+        .app-shell.pushed-back {
+            transform: translateZ(-300px) scale(0.7) translateY(-50px);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .game-stage {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .arcade-cabinet {
+            background: var(--cabinet-bg);
+            border: 6px solid var(--cabinet-border);
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 0 #000;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            max-width: 100%;
+        }
+
+        .marquee {
+            background: var(--marquee-bg);
+            border: 4px solid var(--cabinet-border);
+            color: #fff;
+            padding: 6px 10px;
+            text-align: center;
+            font-size: clamp(0.5rem, 2.2vw, 0.75rem);
+            margin-bottom: 10px;
+            box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.4);
+            text-shadow: 2px 2px #000;
+        }
+
+        .reels-frame {
+            background: var(--cabinet-border);
+            border: 4px solid var(--cabinet-border);
+            padding: 6px;
+            border-radius: 6px;
+        }
+
+        .reels-container {
+            display: flex;
+            gap: 6px;
+            background: #000;
+            padding: 6px;
+            border: 4px solid var(--marquee-bg);
+            justify-content: center;
+        }
+
+        .reel-window {
+            width: clamp(40px, 12vw, 65px);
+            height: clamp(60px, 16vw, 85px);
+            background: var(--reel-bg);
+            border: 3px solid var(--reel-border);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reel-strip {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .reel-number {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--reel-text);
+            font-size: clamp(1.4rem, 5vw, 2.2rem);
+            flex-shrink: 0;
+        }
+
+        .pixel-icon {
+            display: inline-block;
+            width: clamp(24px, 7vw, 36px);
+            height: clamp(24px, 7vw, 36px);
+            image-rendering: pixelated;
+        }
+
+        .lever-zone {
+            width: clamp(30px, 8vw, 40px);
+            height: clamp(100px, 25vw, 130px);
+            position: relative;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .lever-zone.disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .lever-base {
+            width: 100%;
+            height: 25px;
+            background: var(--cabinet-border);
+            border: 3px solid #000;
+            position: absolute;
+            bottom: 0;
+            border-radius: 4px;
+        }
+
+        .lever-arm {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 80%;
+            transform-origin: bottom center;
+            transition: transform 0.25s cubic-bezier(0.5, 0, 0.5, 1);
+        }
+
+        .lever-shaft {
+            width: 100%;
+            height: 100%;
+            background: #aaa;
+            border: 2px solid #000;
+        }
+
+        .lever-knob {
+            width: 24px;
+            height: 24px;
+            background: var(--marquee-bg);
+            border: 3px solid #000;
+            position: absolute;
+            top: -12px;
+            left: -8px;
+            border-radius: 4px;
+        }
+
+        .lever-zone.pulled .lever-arm {
+            transform: translateX(-50%) rotateX(140deg) scaleY(0.5);
+        }
+
+        .status-box {
+            margin-top: 15px;
+            background: var(--status-bg);
+            border: 4px solid var(--reel-border);
+            padding: 10px;
+            min-height: 50px;
+            width: 100%;
+            text-align: center;
+            color: var(--status-text);
+            font-size: clamp(0.5rem, 2vw, 0.65rem);
+            line-height: 1.4;
+            box-shadow: 4px 4px 0 #000;
+        }
+
+        .guess-row {
+            margin-top: 14px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .guess-row label {
+            font-size: clamp(0.5rem, 2vw, 0.65rem);
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .pixel-input {
+            font-family: 'Press Start 2P', 'Courier New', monospace;
+            font-size: 16px;
+            text-align: center;
+            width: 110px;
+            padding: 8px 4px;
+            background: var(--reel-bg);
+            color: var(--reel-text);
+            border: 3px solid var(--reel-border);
+            border-radius: 4px;
+            box-shadow: 3px 3px 0 #000;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            appearance: none;
+        }
+
+        .pixel-input::-webkit-outer-spin-button,
+        .pixel-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .pixel-input:disabled {
+            opacity: 0.6;
+        }
+
+        .wheel-frame {
+            background: var(--cabinet-border);
+            padding: 6px;
+            border-radius: 50%;
+            display: inline-flex;
+        }
+
+        .wheel-outer {
+            position: relative;
+            width: clamp(160px, 45vw, 220px);
+            height: clamp(160px, 45vw, 220px);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+
+        .wheel-rotor {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 4px solid var(--marquee-bg);
+            background: #000;
+            transform-origin: 50% 50%;
+            will-change: transform;
+        }
+
+        .wheel-rotor svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            shape-rendering: crispEdges;
+        }
+
+        .wheel-pointer {
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 16px solid var(--title-color);
+            filter: drop-shadow(2px 2px 0 #000);
+            z-index: 3;
+        }
+
+        .wheel-center-cap {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 22%;
+            height: 22%;
+            background: var(--cabinet-border);
+            border: 3px solid var(--title-color);
+            border-radius: 50%;
+            z-index: 2;
+        }
+
+        .controls-bar {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-main {
+            background: var(--status-bg);
+            border: 3px solid var(--reel-border);
+            color: var(--status-text);
+            font-family: 'Press Start 2P', monospace;
+            padding: 10px 14px;
+            font-size: 0.65rem;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 #000;
+            border-radius: 4px;
+        }
+
+        .btn-main:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .btn-main.hidden-setting {
+            display: none !important;
+        }
+
+        .footer-credits {
+            margin-top: 18px;
+            font-size: clamp(0.5rem, 2vw, 0.65rem);
+            text-align: center;
+            color: #8b9bb4;
+        }
+
+        .footer-credits a {
+            color: #8b9bb4;
+            text-decoration: none;
+            transition: color 0.2s ease, text-shadow 0.2s ease;
+            user-select: auto;
+            -webkit-user-select: auto;
+        }
+
+        .footer-credits a:hover {
+            color: #fcea48;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: var(--cabinet-bg);
+            border: 6px solid var(--cabinet-border);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 0 #000;
+            width: 90%;
+            max-width: 360px;
+            max-height: 85vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
+            z-index: 10;
+        }
+
+        .settings-panel.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .settings-panel h2 {
+            margin: 0 0 5px 0;
+            font-size: 0.85rem;
+            color: var(--title-color);
+            text-align: center;
+            text-shadow: 2px 2px #000;
+        }
+
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 99;
+        }
+
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            top: -10px;
+            animation: confettiFall 2.5s linear forwards;
+        }
+
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+
+        .lang-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin: 4px 0 8px 0;
+        }
+        .lang-selector button {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.5rem;
+            padding: 5px 7px;
+            background: var(--status-bg);
+            color: var(--status-text);
+            border: 2px solid var(--reel-border);
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 #000;
+            transition: 0.1s ease;
+        }
+        .lang-selector button.active-lang {
+            border-color: var(--title-color);
+            color: var(--title-color);
+            box-shadow: 0 0 8px var(--title-color);
+        }
+        .lang-selector button:active {
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0 #000;
+        }
+        .settings-divider {
+            border: 0;
+            border-top: 2px solid var(--cabinet-border);
+            margin: 4px 0 8px 0;
+            width: 100%;
+        }
+        .detected-lang-display {
+            text-align: center;
+            font-size: 0.5rem;
+            color: var(--status-text);
+            background: var(--cabinet-border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            border: 1px solid var(--reel-border);
+        }
+        .detected-lang-display span {
+            color: var(--title-color);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ARCADE SIMULATOR</h1>
+
+    <div class="app-shell" id="appShell">
+        <div class="attempts-count">
+            <span id="lblAttempts">POKUSY</span>: <span id="attempts">0</span> | <span class="jackpot-highlight"><span id="lblJackpots">JACKPOTY</span>: <span id="jackpots">0</span></span>
+        </div>
+
+        <div class="game-stage" id="gameStage">
+
+            <!-- SLOT MACHINE PANEL -->
+            <div class="game-wrapper" id="slotPanel">
+                <div class="arcade-cabinet">
+                    <div style="width: 100%;">
+                        <div class="marquee" id="marqueeText">LUCKY SLOT</div>
+                        <div class="reels-frame">
+                            <div class="reels-container" id="reelsContainer"></div>
+                        </div>
+                    </div>
+
+                    <div class="lever-zone" id="lever" onclick="pullLever()">
+                        <div class="lever-base"></div>
+                        <div class="lever-arm">
+                            <div class="lever-knob"></div>
+                            <div class="lever-shaft"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-box" id="status">
+                    ZATÁHNI ZA PÁKU!
+                </div>
+            </div>
+
+            <!-- WHEEL PANEL -->
+            <div class="game-wrapper" id="wheelPanel" style="display:none;">
+                <div class="arcade-cabinet">
+                    <div style="width: 100%; display:flex; flex-direction:column; align-items:center;">
+                        <div class="marquee" id="marqueeWheelText">LUCKY KOLO</div>
+                        <div class="wheel-frame">
+                            <div class="wheel-outer" id="wheelOuter">
+                                <div class="wheel-pointer"></div>
+                                <div class="wheel-rotor" id="wheelRotor"></div>
+                                <div class="wheel-center-cap"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lever-zone" id="wheelLever" onclick="pullWheelLever()">
+                        <div class="lever-base"></div>
+                        <div class="lever-arm">
+                            <div class="lever-knob"></div>
+                            <div class="lever-shaft"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="guess-row">
+                    <label id="lblGuess" for="wheelGuessInput">TVOJE ČÍSLO:</label>
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" id="wheelGuessInput" class="pixel-input" min="1" max="17" value="1">
+                </div>
+
+                <div class="status-box" id="wheelStatus">
+                    ZATÁHNI ZA PÁKU!
+                </div>
+            </div>
+
+        </div>
+
+        <div class="controls-bar">
+            <button class="btn-main" id="btnSettings" onclick="toggleSettings()">⚙️ SETTINGS</button>
+        </div>
+
+        <div class="footer-credits">
+            MADE BY <a href="https://github.com/betinkapro" target="_blank" rel="noopener noreferrer">BETINKAPRO</a> & <a href="https://www.youtube.com/@krtek_hrabal" target="_blank" rel="noopener noreferrer">HRDIC1</a>
+        </div>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+        <h2 id="settingsTitle">SETTINGS</h2>
+        
+        <!-- Detected language display (always in English) -->
+        <div class="detected-lang-display" id="detectedLangDisplay">
+            DETECTED LANGUAGE: <span id="detectedLangName">ENGLISH</span>
+        </div>
+        
+        <button class="btn-main" onclick="cycleGameMode()" id="gameModeBtn">GAME: SLOT</button>
+        <button class="btn-main" onclick="cycleReelCount()" id="reelCountBtn">REELS: 3</button>
+        <button class="btn-main" onclick="toggleSymbols()" id="symbolBtn">MODE: NUMBERS</button>
+        <button class="btn-main hidden-setting" onclick="cycleWheelSize()" id="wheelSizeBtn">NUMBER COUNT: 17</button>
+        <button class="btn-main" onclick="toggleFastSpin()" id="fastSpinBtn">FAST SPIN: OFF</button>
+        <button class="btn-main" onclick="toggleTheme()" id="themeBtn">TOGGLE THEME</button>
+        <button class="btn-main" onclick="resetCount()" id="resetBtn">RESET STATS</button>
+        <hr class="settings-divider">
+        <div style="text-align:center; font-size:0.5rem; color:var(--status-text); margin-bottom:4px;" id="langSelectorLabel">SELECT LANGUAGE</div>
+        <div class="lang-selector" id="langSelector"></div>
+        <button class="btn-main" onclick="toggleSettings()" id="closeBtn" style="margin-top: 5px; border-color: var(--marquee-bg);">CLOSE</button>
+    </div>
+
+    <div class="confetti-container" id="confettiBox"></div>
+
+    <script>
+        // ============================================================
+        //  JAZYKOVÉ PŘEKLADY (10+ JAZYKŮ)
+        // ============================================================
+        const translations = {
+            cs: {
+                attempts: "POKUSY",
+                jackpots: "JACKPOTY",
+                pullLever: "ZATÁHNI ZA PÁKU!",
+                spinning: "ROTACE...",
+                tryAgain: "Zkus to znovu!",
+                jackpotWin: "JACKPOT! VŠECHNA POLÍČKA STEJNÁ! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 JAZYK: ČEŠTINA",
+                reels: "VÁLCE: ",
+                mode: "REŽIM: ",
+                modeNumbers: "ČÍSLA",
+                modeIcons: "PIXEL ICONS",
+                fastSpin: "FAST SPIN: ",
+                on: "ZAPNUTO",
+                off: "VYPNUTO",
+                themeBtn: "ZAPNOUT/VYPNOUT TÉMA",
+                resetBtn: "RESET STATISTIK",
+                closeBtn: "ZAVŘÍT",
+                gameLabel: "HRA: ",
+                gameSlot: "SLOT",
+                gameWheel: "KOLO",
+                marqueeWheel: "LUCKY KOLO",
+                wheelSizeLabel: "POČET ČÍSEL: ",
+                guessLabel: "TVOJE ČÍSLO:",
+                invalidGuess: "ZADEJ ČÍSLO OD 1 DO ",
+                landed: "PADLO ČÍSLO: ",
+                langAuto: "DETEKOVANÝ JAZYK: ČEŠTINA",
+                langSelectorLabel: "VYBER JAZYK"
+            },
+            en: {
+                attempts: "ATTEMPTS",
+                jackpots: "JACKPOTS",
+                pullLever: "PULL THE LEVER!",
+                spinning: "SPINNING...",
+                tryAgain: "Try again!",
+                jackpotWin: "JACKPOT! ALL MATCHED! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 LANG: ENGLISH",
+                reels: "REELS: ",
+                mode: "MODE: ",
+                modeNumbers: "NUMBERS",
+                modeIcons: "PIXEL ICONS",
+                fastSpin: "FAST SPIN: ",
+                on: "ON",
+                off: "OFF",
+                themeBtn: "TOGGLE THEME",
+                resetBtn: "RESET STATS",
+                closeBtn: "CLOSE",
+                gameLabel: "GAME: ",
+                gameSlot: "SLOT",
+                gameWheel: "WHEEL",
+                marqueeWheel: "LUCKY WHEEL",
+                wheelSizeLabel: "NUMBER COUNT: ",
+                guessLabel: "YOUR NUMBER:",
+                invalidGuess: "ENTER A NUMBER FROM 1 TO ",
+                landed: "LANDED ON: ",
+                langAuto: "DETECTED LANGUAGE: ENGLISH",
+                langSelectorLabel: "SELECT LANGUAGE"
+            },
+            sk: {
+                attempts: "POKUSY",
+                jackpots: "JACKPOTY",
+                pullLever: "POTIAHNI PÁKU!",
+                spinning: "TOČENIE...",
+                tryAgain: "Skús to znova!",
+                jackpotWin: "JACKPOT! VŠETKY POLÍČKA ROVNAKÉ! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 JAZYK: SLOVENČINA",
+                reels: "VALCE: ",
+                mode: "REŽIM: ",
+                modeNumbers: "ČÍSLA",
+                modeIcons: "PIXEL IKONY",
+                fastSpin: "RÝCHLE TOČENIE: ",
+                on: "ZAPNUTÉ",
+                off: "VYPNUTÉ",
+                themeBtn: "ZAPNÚŤ/VYPNÚŤ TÉMU",
+                resetBtn: "RESETOVAŤ ŠTATISTIKY",
+                closeBtn: "ZAVRIEŤ",
+                gameLabel: "HRA: ",
+                gameSlot: "AUTOMAT",
+                gameWheel: "KOLO",
+                marqueeWheel: "ŠŤASTNÉ KOLO",
+                wheelSizeLabel: "POČET ČÍSEL: ",
+                guessLabel: "TVOJE ČÍSLO:",
+                invalidGuess: "ZADAJ ČÍSLO OD 1 DO ",
+                landed: "PADLO ČÍSLO: ",
+                langAuto: "DETEKOVANÝ JAZYK: SLOVENČINA",
+                langSelectorLabel: "VYBER JAZYK"
+            },
+            pl: {
+                attempts: "PRÓBY",
+                jackpots: "JACKPOTY",
+                pullLever: "POCIĄGNIJ DŹWIGNIĘ!",
+                spinning: "KRĘCENIE...",
+                tryAgain: "Spróbuj ponownie!",
+                jackpotWin: "JACKPOT! WSZYSTKIE SĄ TAKIE SAME! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 JĘZYK: POLSKI",
+                reels: "BĘBNY: ",
+                mode: "TRYB: ",
+                modeNumbers: "LICZBY",
+                modeIcons: "IKONY PIKSLI",
+                fastSpin: "SZYBKI SPIN: ",
+                on: "WŁĄCZONY",
+                off: "WYŁĄCZONY",
+                themeBtn: "PRZEŁĄCZ MOTYW",
+                resetBtn: "RESET STATYSTYK",
+                closeBtn: "ZAMKNIJ",
+                gameLabel: "GRA: ",
+                gameSlot: "JEDNORĘKI BANDYTA",
+                gameWheel: "KOŁO",
+                marqueeWheel: "SZCZĘŚLIWE KOŁO",
+                wheelSizeLabel: "LICZBA CYFR: ",
+                guessLabel: "TWOJA LICZBA:",
+                invalidGuess: "WPISZ LICZBĘ OD 1 DO ",
+                landed: "WYPADŁA LICZBA: ",
+                langAuto: "WYKRYTY JĘZYK: POLSKI",
+                langSelectorLabel: "WYBIERZ JĘZYK"
+            },
+            de: {
+                attempts: "VERSUCHE",
+                jackpots: "JACKPOTS",
+                pullLever: "ZIEH DEN HEBEL!",
+                spinning: "DREHT SICH...",
+                tryAgain: "Versuche es nochmal!",
+                jackpotWin: "JACKPOT! ALLE GLEICH! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 SPRACHE: DEUTSCH",
+                reels: "WALZEN: ",
+                mode: "MODUS: ",
+                modeNumbers: "ZAHLEN",
+                modeIcons: "PIXEL-ICONS",
+                fastSpin: "SCHNELLER SPIN: ",
+                on: "EIN",
+                off: "AUS",
+                themeBtn: "THEMA UMSCHALTEN",
+                resetBtn: "STATISTIK ZURÜCKSETZEN",
+                closeBtn: "SCHLIESSEN",
+                gameLabel: "SPIEL: ",
+                gameSlot: "SPIELAUTOMAT",
+                gameWheel: "RAD",
+                marqueeWheel: "GLÜCKSRAD",
+                wheelSizeLabel: "ZAHLENANZAHL: ",
+                guessLabel: "DEINE ZAHL:",
+                invalidGuess: "GIB EINE ZAHL VON 1 BIS ",
+                landed: "GELANDET AUF: ",
+                langAuto: "ERKANNTE SPRACHE: DEUTSCH",
+                langSelectorLabel: "SPRACHE WÄHLEN"
+            },
+            fr: {
+                attempts: "TENTATIVES",
+                jackpots: "JACKPOTS",
+                pullLever: "TIRER LE LEVIER!",
+                spinning: "TOURNE...",
+                tryAgain: "Réessaie!",
+                jackpotWin: "JACKPOT! TOUS IDENTIQUES! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 LANGUE: FRANÇAIS",
+                reels: "ROULEAUX: ",
+                mode: "MODE: ",
+                modeNumbers: "CHIFFRES",
+                modeIcons: "ICÔNES PIXEL",
+                fastSpin: "SPIN RAPIDE: ",
+                on: "ACTIVÉ",
+                off: "DÉSACTIVÉ",
+                themeBtn: "ACTIVER/DÉSACTIVER LE THÈME",
+                resetBtn: "RÉINITIALISER LES STATS",
+                closeBtn: "FERMER",
+                gameLabel: "JEU: ",
+                gameSlot: "MACHINE À SOUS",
+                gameWheel: "ROUE",
+                marqueeWheel: "ROUE DE LA CHANCE",
+                wheelSizeLabel: "NOMBRE DE CHIFFRES: ",
+                guessLabel: "TON CHIFFRE:",
+                invalidGuess: "ENTRE UN CHIFFRE DE 1 À ",
+                landed: "POSÉ SUR: ",
+                langAuto: "LANGUE DÉTECTÉE: FRANÇAIS",
+                langSelectorLabel: "CHOISIR LA LANGUE"
+            },
+            es: {
+                attempts: "INTENTOS",
+                jackpots: "JACKPOTS",
+                pullLever: "¡TIRA DE LA PALANCA!",
+                spinning: "GIRANDO...",
+                tryAgain: "¡Inténtalo de nuevo!",
+                jackpotWin: "¡JACKPOT! ¡TODOS IGUALES! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 IDIOMA: ESPAÑOL",
+                reels: "CARRETES: ",
+                mode: "MODO: ",
+                modeNumbers: "NÚMEROS",
+                modeIcons: "ICONOS PIXEL",
+                fastSpin: "GIRO RÁPIDO: ",
+                on: "ACTIVADO",
+                off: "DESACTIVADO",
+                themeBtn: "CAMBIAR TEMA",
+                resetBtn: "RESTABLECER ESTADÍSTICAS",
+                closeBtn: "CERRAR",
+                gameLabel: "JUEGO: ",
+                gameSlot: "TRAGAPERRAS",
+                gameWheel: "RUEDA",
+                marqueeWheel: "RUEDA DE LA SUERTE",
+                wheelSizeLabel: "CANTIDAD DE NÚMEROS: ",
+                guessLabel: "TU NÚMERO:",
+                invalidGuess: "INGRESA UN NÚMERO DEL 1 AL ",
+                landed: "CAYÓ EN: ",
+                langAuto: "IDIOMA DETECTADO: ESPAÑOL",
+                langSelectorLabel: "SELECCIONAR IDIOMA"
+            },
+            it: {
+                attempts: "TENTATIVI",
+                jackpots: "JACKPOT",
+                pullLever: "TIRA LA LEVA!",
+                spinning: "GIRO...",
+                tryAgain: "Riprova!",
+                jackpotWin: "JACKPOT! TUTTI UGUALI! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 LINGUA: ITALIANO",
+                reels: "RULLI: ",
+                mode: "MODALITÀ: ",
+                modeNumbers: "NUMERI",
+                modeIcons: "ICONE PIXEL",
+                fastSpin: "SPIN VELOCE: ",
+                on: "ATTIVO",
+                off: "DISATTIVO",
+                themeBtn: "ATTIVA/DISATTIVA TEMA",
+                resetBtn: "RESETTA STATISTICHE",
+                closeBtn: "CHIUDI",
+                gameLabel: "GIOCO: ",
+                gameSlot: "SLOT MACHINE",
+                gameWheel: "RUOTA",
+                marqueeWheel: "RUOTA DELLA FORTUNA",
+                wheelSizeLabel: "NUMERO DI NUMERI: ",
+                guessLabel: "IL TUO NUMERO:",
+                invalidGuess: "INSERISCI UN NUMERO DA 1 A ",
+                landed: "ATTERRATO SU: ",
+                langAuto: "LINGUA RILEVATA: ITALIANO",
+                langSelectorLabel: "SELEZIONA LINGUA"
+            },
+            hu: {
+                attempts: "PRÓBÁLKOZÁSOK",
+                jackpots: "JACKPOTOK",
+                pullLever: "HÚZD MEG A KART!",
+                spinning: "FORGÁS...",
+                tryAgain: "Próbáld újra!",
+                jackpotWin: "JACKPOT! MINDEGYEZŐK! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 NYELV: MAGYAR",
+                reels: "TEKERCS: ",
+                mode: "MÓD: ",
+                modeNumbers: "SZÁMOK",
+                modeIcons: "PIXEL IKONOK",
+                fastSpin: "GYORS PÖRGÉS: ",
+                on: "BEKAPCSOLVA",
+                off: "KIKAPCSOLVA",
+                themeBtn: "TÉMA VÁLTÁS",
+                resetBtn: "STATISZTIKA VISSZAÁLLÍTÁSA",
+                closeBtn: "BEZÁRÁS",
+                gameLabel: "JÁTÉK: ",
+                gameSlot: "NYERŐGÉP",
+                gameWheel: "KERÉK",
+                marqueeWheel: "SZERENCSÉKERÉK",
+                wheelSizeLabel: "SZÁMOK SZÁMA: ",
+                guessLabel: "TE SZÁMOD:",
+                invalidGuess: "ADJ MEG EGY SZÁMOT 1-TŐL ",
+                landed: "RÁESETT: ",
+                langAuto: "FELISMERT NYELV: MAGYAR",
+                langSelectorLabel: "NYELV KIVÁLASZTÁSA"
+            },
+            ru: {
+                attempts: "ПОПЫТКИ",
+                jackpots: "ДЖЕКПОТЫ",
+                pullLever: "ДЁРНИ РЫЧАГ!",
+                spinning: "ВРАЩЕНИЕ...",
+                tryAgain: "Попробуй снова!",
+                jackpotWin: "ДЖЕКПОТ! ВСЕ ОДИНАКОВЫ! 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 ЯЗЫК: РУССКИЙ",
+                reels: "БАРАБАНЫ: ",
+                mode: "РЕЖИМ: ",
+                modeNumbers: "ЧИСЛА",
+                modeIcons: "ПИКСЕЛЬНЫЕ ИКОНЫ",
+                fastSpin: "БЫСТРЫЙ СПИН: ",
+                on: "ВКЛ",
+                off: "ВЫКЛ",
+                themeBtn: "ВКЛЮЧИТЬ/ВЫКЛЮЧИТЬ ТЕМУ",
+                resetBtn: "СБРОС СТАТИСТИКИ",
+                closeBtn: "ЗАКРЫТЬ",
+                gameLabel: "ИГРА: ",
+                gameSlot: "СЛОТ-МАШИНА",
+                gameWheel: "КОЛЕСО",
+                marqueeWheel: "КОЛЕСО УДАЧИ",
+                wheelSizeLabel: "КОЛИЧЕСТВО ЧИСЕЛ: ",
+                guessLabel: "ТВОЁ ЧИСЛО:",
+                invalidGuess: "ВВЕДИ ЧИСЛО ОТ 1 ДО ",
+                landed: "ВЫПАЛО ЧИСЛО: ",
+                langAuto: "ОПРЕДЕЛЁННЫЙ ЯЗЫК: РУССКИЙ",
+                langSelectorLabel: "ВЫБЕРИ ЯЗЫК"
+            },
+            ja: {
+                attempts: "試行回数",
+                jackpots: "ジャックポット",
+                pullLever: "レバーを引いて！",
+                spinning: "回転中...",
+                tryAgain: "もう一度！",
+                jackpotWin: "ジャックポット！すべて一致！ 🚨🎉",
+                settings: "⚙️ SETTINGS",
+                settingsTitle: "SETTINGS",
+                langBtn: "🌐 言語: 日本語",
+                reels: "リール: ",
+                mode: "モード: ",
+                modeNumbers: "数字",
+                modeIcons: "ピクセルアイコン",
+                fastSpin: "高速スピン: ",
+                on: "オン",
+                off: "オフ",
+                themeBtn: "テーマ切り替え",
+                resetBtn: "統計リセット",
+                closeBtn: "閉じる",
+                gameLabel: "ゲーム: ",
+                gameSlot: "スロット",
+                gameWheel: "ホイール",
+                marqueeWheel: "ラッキーホイール",
+                wheelSizeLabel: "数字の数: ",
+                guessLabel: "あなたの数字:",
+                invalidGuess: "1から までの数字を入力してください ",
+                landed: "着地: ",
+                langAuto: "検出された言語: 日本語",
+                langSelectorLabel: "言語を選択"
+            }
+        };
+
+        // ============================================================
+        //  KONFIGURACE A ZÁKLADNÍ PROMĚNNÉ
+        // ============================================================
+
+        const numberSet = [1, 2, 3, 4, 5, 6];
+
+        const pixelArtIcons = [
+            `<svg class="pixel-icon" viewBox="0 0 8 8" fill="#f0254f"><path d="M1 2h2v1h-2zM5 2h2v1h-2zM0 3h4v2h-4zM4 3h4v2h-4zM1 5h6v1h-6zM2 6h4v1h-4zM3 7h2v1h-2z"/></svg>`,
+            `<svg class="pixel-icon" viewBox="0 0 8 8"><path fill="#38b764" d="M4 1h3v1h-3zM3 2h2v1h-2z"/><path fill="#f0254f" d="M1 4h3v3h-3zM5 5h3v3h-3z"/><path fill="#fff" d="M2 5h1v1h-1zM6 6h1v1h-1z"/></svg>`,
+            `<svg class="pixel-icon" viewBox="0 0 8 8" fill="#fcea48"><path d="M4 0h3v2h-2v1h2v1h-3v1h2v3h-2v-2h-1v-2h1v-1h-2v-3z"/></svg>`,
+            `<svg class="pixel-icon" viewBox="0 0 8 8" fill="#73eff7"><path d="M2 1h4v1h-4zM1 2h6v1h-6zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z"/></svg>`,
+            `<svg class="pixel-icon" viewBox="0 0 8 8" fill="#fcea48"><path d="M3 0h2v2h-2zM0 3h8v1h-8zM1 2h6v3h-6zM2 5h4v1h-4zM1 6h2v2h-2zM5 6h2v2h-2z"/></svg>`,
+            `<svg class="pixel-icon" viewBox="0 0 8 8" fill="#fcea48"><path d="M0 2h1v1h-1zM3 1h2v1h-2zM7 2h1v1h-1zM0 4h8v3h-8zM1 7h6v1h-6z"/></svg>`
+        ];
+
+        // ============================================================
+        //  STAV HRY
+        // ============================================================
+
+        let currentLang = 'cs';
+        let reelCount = 3;
+        let useEmoji = false;
+        let isFastSpin = false;
+        let isSpinning = false;
+        let attempts = 0;
+        let jackpots = 0;
+
+        let gameMode = 'slot'; // 'slot' | 'wheel'
+
+        // Wheel state
+        let wheelSize = 17;
+        let wheelNumbers = [];
+        let wheelRotation = 0;
+
+        // ============================================================
+        //  FUNKCE PRO SLOT (VALEC)
+        // ============================================================
+
+        function getSymbolSet() {
+            return useEmoji ? pixelArtIcons : numberSet;
+        }
+
+        function getRandomSymbolIndex() {
+            return Math.floor(Math.random() * 6);
+        }
+
+        function renderReelStructure() {
+            const container = document.getElementById("reelsContainer");
+            container.innerHTML = "";
+            const currentSet = getSymbolSet();
+
+            for (let i = 1; i <= reelCount; i++) {
+                const win = document.createElement("div");
+                win.className = "reel-window";
+                const initialVal = currentSet[i - 1] || currentSet[0];
+                win.innerHTML = `<div class="reel-strip" id="strip${i}"><div class="reel-number">${initialVal}</div></div>`;
+                container.appendChild(win);
+            }
+        }
+
+        function pullLever() {
+            if (isSpinning) return;
+            isSpinning = true;
+
+            attempts++;
+            document.getElementById("attempts").innerText = attempts;
+
+            const lever = document.getElementById("lever");
+            const status = document.getElementById("status");
+            const t = translations[currentLang];
+
+            lever.classList.add("pulled");
+            status.innerText = t.spinning;
+
+            setTimeout(() => lever.classList.remove("pulled"), 250);
+
+            let resultIndices = [];
+            for (let i = 0; i < reelCount; i++) {
+                resultIndices.push(getRandomSymbolIndex());
+            }
+
+            let finishedCount = 0;
+            for (let i = 1; i <= reelCount; i++) {
+                const steps = isFastSpin ? 6 : 10 + i * 5;
+                const duration = isFastSpin ? 400 + i * 150 : 1200 + i * 600;
+
+                spinReel(`strip${i}`, resultIndices[i - 1], steps, duration, () => {
+                    finishedCount++;
+                    if (finishedCount === reelCount) {
+                        evaluateResult(resultIndices);
+                    }
+                });
+            }
+        }
+
+        function spinReel(stripId, finalIndex, totalSteps, duration, onComplete) {
+            const strip = document.getElementById(stripId);
+            const currentSet = getSymbolSet();
+
+            let sequence = [];
+            for (let i = 0; i < totalSteps; i++) {
+                sequence.push(currentSet[getRandomSymbolIndex()]);
+            }
+            sequence.push(currentSet[finalIndex]);
+
+            strip.innerHTML = sequence.map(val => `<div class="reel-number">${val}</div>`).join("");
+            strip.style.transition = "none";
+            strip.style.transform = "translateY(0%)";
+
+            strip.offsetHeight;
+
+            strip.style.transition = `transform ${duration}ms cubic-bezier(0.1, 0.9, 0.2, 1)`;
+            strip.style.transform = `translateY(-${totalSteps * 100}%)`;
+
+            setTimeout(() => {
+                strip.style.transition = "none";
+                strip.innerHTML = `<div class="reel-number">${currentSet[finalIndex]}</div>`;
+                strip.style.transform = "translateY(0%)";
+                if (onComplete) onComplete();
+            }, duration);
+        }
+
+        function evaluateResult(resultIndices) {
+            const status = document.getElementById("status");
+            const lever = document.getElementById("lever");
+            const t = translations[currentLang];
+            let isWin = false;
+
+            const isJackpot = resultIndices.every(val => val === resultIndices[0]);
+
+            if (isJackpot) {
+                isWin = true;
+                jackpots++;
+                document.getElementById("jackpots").innerText = jackpots;
+                status.innerText = t.jackpotWin;
+            } else {
+                status.innerText = t.tryAgain;
+            }
+
+            if (isWin) {
+                triggerCelebration();
+                lever.classList.add("disabled");
+                setTimeout(() => {
+                    lever.classList.remove("disabled");
+                    isSpinning = false;
+                }, 1500);
+            } else {
+                isSpinning = false;
+            }
+        }
+
+        // ============================================================
+        //  FUNKCE PRO KOLO
+        // ============================================================
+
+        function generateWheelNumbers(size) {
+            const arr = Array.from({ length: size }, (_, i) => i + 1);
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = arr[i];
+                arr[i] = arr[j];
+                arr[j] = tmp;
+            }
+            return arr;
+        }
+
+        function polarToCartesian(cx, cy, r, angleDeg) {
+            const rad = angleDeg * Math.PI / 180;
+            return {
+                x: cx + r * Math.sin(rad),
+                y: cy - r * Math.cos(rad)
+            };
+        }
+
+        function describeSector(cx, cy, r, startAngle, endAngle) {
+            const start = polarToCartesian(cx, cy, r, startAngle);
+            const end = polarToCartesian(cx, cy, r, endAngle);
+            const largeArcFlag = (endAngle - startAngle) > 180 ? 1 : 0;
+            return [
+                `M ${cx} ${cy}`,
+                `L ${start.x.toFixed(2)} ${start.y.toFixed(2)}`,
+                `A ${r} ${r} 0 ${largeArcFlag} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`,
+                'Z'
+            ].join(' ');
+        }
+
+        function renderWheelSVG() {
+            const cx = 100, cy = 100, r = 96;
+            const segAngle = 360 / wheelSize;
+            const colorA = "#f0254f";
+            const colorB = "#140813";
+            const fontSize = wheelSize <= 17 ? 9 : (wheelSize <= 34 ? 6.5 : 5);
+
+            let paths = "";
+            let labels = "";
+
+            for (let i = 0; i < wheelSize; i++) {
+                const startAngle = i * segAngle;
+                const endAngle = (i + 1) * segAngle;
+                const fill = (i % 2 === 0) ? colorA : colorB;
+                paths += `<path d="${describeSector(cx, cy, r, startAngle, endAngle)}" fill="${fill}" stroke="#000" stroke-width="1" shape-rendering="crispEdges"/>`;
+
+                const midAngle = startAngle + segAngle / 2;
+                const pos = polarToCartesian(cx, cy, r * 0.72, midAngle);
+                let textRot = midAngle;
+                if (textRot > 90 && textRot < 270) textRot += 180;
+
+                labels += `<text x="${pos.x.toFixed(2)}" y="${pos.y.toFixed(2)}" transform="rotate(${textRot.toFixed(2)} ${pos.x.toFixed(2)} ${pos.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-family="'Press Start 2P','Courier New',monospace" fill="#fff" stroke="#000" stroke-width="0.5" paint-order="stroke">${wheelNumbers[i]}</text>`;
+            }
+
+            const svg = `<svg viewBox="0 0 200 200" shape-rendering="crispEdges">${paths}${labels}</svg>`;
+            document.getElementById("wheelRotor").innerHTML = svg;
+        }
+
+        function getWheelDiameterStyle(size) {
+            if (size <= 17) return "clamp(160px, 48vw, 220px)";
+            if (size <= 34) return "clamp(200px, 64vw, 280px)";
+            return "clamp(240px, 80vw, 340px)";
+        }
+
+        function applyWheelDiameter() {
+            const outer = document.getElementById("wheelOuter");
+            const size = getWheelDiameterStyle(wheelSize);
+            outer.style.width = size;
+            outer.style.height = size;
+        }
+
+        function updateWheelInputBounds() {
+            const input = document.getElementById("wheelGuessInput");
+            input.max = wheelSize;
+            input.placeholder = "1-" + wheelSize;
+            let val = parseInt(input.value, 10);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > wheelSize) val = wheelSize;
+            input.value = val;
+        }
+
+        function cycleWheelSize() {
+            if (wheelSize === 17) wheelSize = 34;
+            else if (wheelSize === 34) wheelSize = 51;
+            else wheelSize = 17;
+
+            wheelNumbers = generateWheelNumbers(wheelSize);
+            renderWheelSVG();
+            updateWheelInputBounds();
+            applyWheelDiameter();
+
+            updateSettingsTexts();
+        }
+
+        function spinWheelTo(targetIndex, onComplete) {
+            const rotor = document.getElementById("wheelRotor");
+            const segAngle = 360 / wheelSize;
+            
+            const targetAngle = targetIndex * segAngle + segAngle / 2;
+            const targetRotation = 360 - targetAngle;
+            const extraSpins = isFastSpin ? 4 : 8;
+            const totalDuration = isFastSpin ? 1200 : 3500;
+            
+            const currentRotation = wheelRotation % 360;
+            let delta = targetRotation - currentRotation;
+            while (delta < 0) delta += 360;
+            
+            const totalRotation = currentRotation + delta + extraSpins * 360;
+            
+            rotor.style.transition = `transform ${totalDuration}ms cubic-bezier(0.1, 0.8, 0.2, 1)`;
+            rotor.style.transform = `rotate(${totalRotation}deg)`;
+            wheelRotation = totalRotation;
+            
+            setTimeout(() => {
+                const normalized = totalRotation % 360;
+                rotor.style.transition = "none";
+                rotor.style.transform = `rotate(${normalized}deg)`;
+                wheelRotation = normalized;
+                if (onComplete) onComplete();
+            }, totalDuration);
+        }
+
+        function pullWheelLever() {
+            if (isSpinning) return;
+
+            const t = translations[currentLang];
+            const input = document.getElementById("wheelGuessInput");
+            const status = document.getElementById("wheelStatus");
+            const guess = parseInt(input.value, 10);
+
+            if (isNaN(guess) || guess < 1 || guess > wheelSize) {
+                status.innerText = t.invalidGuess + wheelSize;
+                return;
+            }
+
+            isSpinning = true;
+            attempts++;
+            document.getElementById("attempts").innerText = attempts;
+
+            const lever = document.getElementById("wheelLever");
+            lever.classList.add("pulled");
+            input.disabled = true;
+            status.innerText = t.spinning;
+
+            setTimeout(() => lever.classList.remove("pulled"), 250);
+
+            const targetIndex = Math.floor(Math.random() * wheelSize);
+
+            spinWheelTo(targetIndex, () => {
+                const winningNumber = wheelNumbers[targetIndex];
+                evaluateWheelResult(winningNumber === guess, winningNumber);
+            });
+        }
+
+        function evaluateWheelResult(isWin, winningNumber) {
+            const status = document.getElementById("wheelStatus");
+            const lever = document.getElementById("wheelLever");
+            const input = document.getElementById("wheelGuessInput");
+            const t = translations[currentLang];
+
+            const landedText = t.landed + winningNumber + " — ";
+
+            if (isWin) {
+                jackpots++;
+                document.getElementById("jackpots").innerText = jackpots;
+                status.innerText = landedText + t.jackpotWin;
+            } else {
+                status.innerText = landedText + t.tryAgain;
+            }
+
+            if (isWin) {
+                triggerCelebration();
+                lever.classList.add("disabled");
+                setTimeout(() => {
+                    lever.classList.remove("disabled");
+                    input.disabled = false;
+                    isSpinning = false;
+                }, 1500);
+            } else {
+                input.disabled = false;
+                isSpinning = false;
+            }
+        }
+
+        // ============================================================
+        //  SPOLEČNÉ FUNKCE
+        // ============================================================
+
+        function triggerCelebration() {
+            const confettiBox = document.getElementById("confettiBox");
+            confettiBox.innerHTML = "";
+            const colors = ["#f0254f", "#fcea48", "#38b764", "#73eff7", "#ffffff"];
+
+            for (let i = 0; i < 60; i++) {
+                const particle = document.createElement("div");
+                particle.classList.add("confetti-piece");
+                particle.style.left = Math.random() * 100 + "%";
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.animationDelay = Math.random() * 0.5 + "s";
+                particle.style.animationDuration = (1.5 + Math.random() * 1.5) + "s";
+                confettiBox.appendChild(particle);
+            }
+
+            setTimeout(() => confettiBox.innerHTML = "", 3500);
+        }
+
+        function toggleSettings() {
+            document.getElementById("appShell").classList.toggle("pushed-back");
+            document.getElementById("settingsPanel").classList.toggle("active");
+        }
+
+        // ============================================================
+        //  JAZYKOVÝ SYSTÉM (10+ JAZYKŮ + DETEKCE)
+        // ============================================================
+
+        const availableLanguages = [
+            { code: 'cs', label: '🇨🇿 Čeština' },
+            { code: 'en', label: '🇬🇧 English' },
+            { code: 'sk', label: '🇸🇰 Slovenčina' },
+            { code: 'pl', label: '🇵🇱 Polski' },
+            { code: 'de', label: '🇩🇪 Deutsch' },
+            { code: 'fr', label: '🇫🇷 Français' },
+            { code: 'es', label: '🇪🇸 Español' },
+            { code: 'it', label: '🇮🇹 Italiano' },
+            { code: 'hu', label: '🇭🇺 Magyar' },
+            { code: 'ru', label: '🇷🇺 Русский' },
+            { code: 'ja', label: '🇯🇵 日本語' }
+        ];
+
+        function detectBrowserLanguage() {
+            const langs = navigator.languages || [navigator.language || 'cs'];
+            for (let lang of langs) {
+                const base = lang.split('-')[0].toLowerCase();
+                for (let av of availableLanguages) {
+                    if (av.code === base) return av.code;
+                }
+            }
+            return 'cs';
+        }
+
+        function setLanguage(code) {
+            if (!translations[code]) return;
+            currentLang = code;
+            updateGameTexts();
+            updateDetectedLanguageDisplay();
+            updateLangSelectorUI();
+        }
+
+        function switchLanguage(code) {
+            setLanguage(code);
+            try {
+                localStorage.setItem('arcade_lang', code);
+            } catch(e) {}
+        }
+
+        function buildLanguageSelector() {
+            const container = document.getElementById('langSelector');
+            container.innerHTML = '';
+            availableLanguages.forEach(lang => {
+                const btn = document.createElement('button');
+                btn.dataset.code = lang.code;
+                btn.textContent = lang.label;
+                btn.onclick = () => switchLanguage(lang.code);
+                container.appendChild(btn);
+            });
+            updateLangSelectorUI();
+        }
+
+        function updateLangSelectorUI() {
+            const buttons = document.querySelectorAll('#langSelector button');
+            buttons.forEach(btn => {
+                btn.classList.toggle('active-lang', btn.dataset.code === currentLang);
+            });
+        }
+
+        function updateDetectedLanguageDisplay() {
+            const detected = availableLanguages.find(l => l.code === currentLang);
+            document.getElementById('detectedLangName').textContent = detected ? detected.label : currentLang.toUpperCase();
+        }
+
+        // ============================================================
+        //  AKTUALIZACE TEXTŮ (HERNÍ + NASTAVENÍ V ANGLIČTINĚ)
+        // ============================================================
+
+        // Nastavení - vždy anglicky (pevně)
+        function updateSettingsTexts() {
+            document.getElementById('settingsTitle').textContent = 'SETTINGS';
+            document.getElementById('gameModeBtn').textContent = 'GAME: ' + (gameMode === 'slot' ? 'SLOT' : 'WHEEL');
+            document.getElementById('reelCountBtn').textContent = 'REELS: ' + reelCount;
+            document.getElementById('symbolBtn').textContent = 'MODE: ' + (useEmoji ? 'PIXEL ICONS' : 'NUMBERS');
+            document.getElementById('wheelSizeBtn').textContent = 'NUMBER COUNT: ' + wheelSize;
+            document.getElementById('fastSpinBtn').textContent = 'FAST SPIN: ' + (isFastSpin ? 'ON' : 'OFF');
+            document.getElementById('themeBtn').textContent = 'TOGGLE THEME';
+            document.getElementById('resetBtn').textContent = 'RESET STATS';
+            document.getElementById('closeBtn').textContent = 'CLOSE';
+            document.getElementById('langSelectorLabel').textContent = 'SELECT LANGUAGE';
+            
+            const detected = availableLanguages.find(l => l.code === currentLang);
+            document.getElementById('detectedLangDisplay').innerHTML = 'DETECTED LANGUAGE: <span id="detectedLangName">' + 
+                (detected ? detected.label : currentLang.toUpperCase()) + '</span>';
+            
+            // Tlačítko SETTINGS na hlavní ploše je vždy anglicky
+            document.getElementById('btnSettings').textContent = '⚙️ SETTINGS';
+        }
+
+        // Herní texty - podle zvoleného jazyka
+        function updateGameTexts() {
+            const t = translations[currentLang];
+
+            document.getElementById("lblAttempts").innerText = t.attempts;
+            document.getElementById("lblJackpots").innerText = t.jackpots;
+            document.getElementById("marqueeWheelText").innerText = t.marqueeWheel;
+            document.getElementById("lblGuess").innerText = t.guessLabel;
+
+            if (!isSpinning) {
+                document.getElementById("status").innerText = t.pullLever;
+                document.getElementById("wheelStatus").innerText = t.pullLever;
+            }
+        }
+
+        // Kompletní aktualizace
+        function updateAllTexts() {
+            updateSettingsTexts();
+            updateGameTexts();
+            updateDetectedLanguageDisplay();
+            updateLangSelectorUI();
+        }
+
+        // ============================================================
+        //  OSTATNÍ FUNKCE
+        // ============================================================
+
+        function cycleReelCount() {
+            reelCount = (reelCount % 5) + 1;
+            renderReelStructure();
+            updateSettingsTexts();
+        }
+
+        function toggleSymbols() {
+            useEmoji = !useEmoji;
+            renderReelStructure();
+            updateSettingsTexts();
+        }
+
+        function toggleFastSpin() {
+            isFastSpin = !isFastSpin;
+            updateSettingsTexts();
+        }
+
+        function toggleTheme() {
+            if (document.body.getAttribute("data-theme") === "light") {
+                document.body.removeAttribute("data-theme");
+            } else {
+                document.body.setAttribute("data-theme", "light");
+            }
+        }
+
+        function resetCount() {
+            attempts = 0;
+            jackpots = 0;
+            document.getElementById("attempts").innerText = attempts;
+            document.getElementById("jackpots").innerText = jackpots;
+        }
+
+        function updateSettingsVisibility() {
+            const reelBtn = document.getElementById("reelCountBtn");
+            const symbolBtn = document.getElementById("symbolBtn");
+            const wheelBtn = document.getElementById("wheelSizeBtn");
+
+            if (gameMode === 'slot') {
+                reelBtn.classList.remove("hidden-setting");
+                symbolBtn.classList.remove("hidden-setting");
+                wheelBtn.classList.add("hidden-setting");
+            } else {
+                reelBtn.classList.add("hidden-setting");
+                symbolBtn.classList.add("hidden-setting");
+                wheelBtn.classList.remove("hidden-setting");
+            }
+        }
+
+        let isSwitchingGame = false;
+
+        function cycleGameMode() {
+            if (isSpinning || isSwitchingGame) return;
+            isSwitchingGame = true;
+
+            const stage = document.getElementById("gameStage");
+            const slotPanel = document.getElementById("slotPanel");
+            const wheelPanel = document.getElementById("wheelPanel");
+
+            const outgoing = gameMode === 'slot' ? slotPanel : wheelPanel;
+            gameMode = gameMode === 'slot' ? 'wheel' : 'slot';
+            const incoming = gameMode === 'slot' ? slotPanel : wheelPanel;
+
+            const dur = 550;
+
+            const startHeight = outgoing.offsetHeight;
+            stage.style.height = startHeight + "px";
+            stage.style.position = "relative";
+
+            outgoing.style.position = "absolute";
+            outgoing.style.top = "0";
+            outgoing.style.left = "0";
+            outgoing.style.width = "100%";
+            outgoing.style.transition = "none";
+            outgoing.style.transform = "translateX(0%)";
+            outgoing.style.opacity = "1";
+
+            incoming.style.display = "flex";
+            incoming.style.position = "absolute";
+            incoming.style.top = "0";
+            incoming.style.left = "0";
+            incoming.style.width = "100%";
+            incoming.style.transition = "none";
+            incoming.style.transform = "translateX(115%)";
+            incoming.style.opacity = "0";
+
+            const endHeight = incoming.scrollHeight;
+
+            void stage.offsetHeight;
+
+            requestAnimationFrame(() => {
+                outgoing.style.transition = `transform ${dur}ms cubic-bezier(0.65, 0, 0.35, 1), opacity ${dur}ms ease`;
+                incoming.style.transition = `transform ${dur}ms cubic-bezier(0.65, 0, 0.35, 1), opacity ${dur}ms ease`;
+                stage.style.transition = `height ${dur}ms cubic-bezier(0.65, 0, 0.35, 1)`;
+
+                outgoing.style.transform = "translateX(-115%)";
+                outgoing.style.opacity = "0";
+                incoming.style.transform = "translateX(0%)";
+                incoming.style.opacity = "1";
+                stage.style.height = endHeight + "px";
+            });
+
+            setTimeout(() => {
+                outgoing.style.display = "none";
+                outgoing.style.position = "";
+                outgoing.style.top = "";
+                outgoing.style.left = "";
+                outgoing.style.width = "";
+                outgoing.style.transform = "";
+                outgoing.style.opacity = "";
+                outgoing.style.transition = "";
+
+                incoming.style.position = "";
+                incoming.style.top = "";
+                incoming.style.left = "";
+                incoming.style.width = "";
+                incoming.style.transform = "";
+                incoming.style.opacity = "";
+                incoming.style.transition = "";
+
+                stage.style.height = "";
+                stage.style.position = "";
+                stage.style.transition = "";
+
+                isSwitchingGame = false;
+            }, dur + 60);
+
+            updateSettingsVisibility();
+            updateSettingsTexts();
+        }
+
+        // ============================================================
+        //  INICIALIZACE
+        // ============================================================
+
+        // Detekce jazyka z prohlížeče nebo localStorage
+        let savedLang = null;
+        try {
+            savedLang = localStorage.getItem('arcade_lang');
+        } catch(e) {}
+        
+        if (savedLang && translations[savedLang]) {
+            currentLang = savedLang;
+        } else {
+            currentLang = detectBrowserLanguage();
+        }
+
+        // Sestavení UI
+        renderReelStructure();
+        wheelNumbers = generateWheelNumbers(wheelSize);
+        renderWheelSVG();
+        updateWheelInputBounds();
+        applyWheelDiameter();
+        updateSettingsVisibility();
+        buildLanguageSelector();
+        setLanguage(currentLang);
+        updateAllTexts();
+    </script>
+</body>
+</html>
